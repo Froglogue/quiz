@@ -91,18 +91,14 @@ function pickCount(arr, count) {
   return shuffle(arr).slice(0, count);
 }
 
-// 🔥 진동 (모바일)
+// ===== 진동 =====
 function vibrate(type = "success") {
   if (!navigator.vibrate) return;
   if (type === "success") navigator.vibrate(50);
   else navigator.vibrate([100, 50, 100]);
 }
 
-// 🔥 애니메이션 클래스
-const cardBase =
-  "bg-white rounded-3xl shadow-lg p-5 transition-all duration-300";
-
-// ===== 빈칸 생성 =====
+// ===== 빈칸 =====
 function makeBlanks(sentence) {
   const stopWords = new Set([
     "the","a","an","to","of","in","on","at","for","and",
@@ -111,9 +107,7 @@ function makeBlanks(sentence) {
     "i","you","he","she","it","we","they"
   ]);
 
-  const words = sentence.split(" ");
-
-  return words.map(w => {
+  return sentence.split(" ").map(w => {
     const match = w.match(/^(.+?)([.,!?])?$/);
     const word = match[1];
     const punct = match[2] || "";
@@ -135,7 +129,7 @@ function RenderSentence({ parts, inputs, setInputs, showAnswer }) {
   let idx = 0;
 
   return (
-    <div className="flex flex-wrap gap-1 text-lg leading-relaxed">
+    <div className="flex flex-wrap gap-1 text-lg">
       {parts.map((p, i) => {
         if (p.type === "text") {
           return <span key={i}>{p.value}&nbsp;</span>;
@@ -153,7 +147,7 @@ function RenderSentence({ parts, inputs, setInputs, showAnswer }) {
                 copy[current] = e.target.value;
                 setInputs(copy);
               }}
-              className={`w-16 md:w-20 text-center border-b-2 outline-none
+              className={`w-16 text-center border-b-2 outline-none
               ${wrong ? "border-red-500 text-red-500" : "border-gray-400"}`}
             />
             <span>{p.punct}&nbsp;</span>
@@ -168,8 +162,8 @@ function RenderSentence({ parts, inputs, setInputs, showAnswer }) {
 export default function App() {
   const [page, setPage] = useState("home");
 
-  // 🔥 2모드
-  const [mode, setMode] = useState("normal"); // normal / blank
+  const [mode, setMode] = useState("normal");
+  const [count, setCount] = useState(10); // 🔥 추가
 
   const [list, setList] = useState([]);
   const [i, setI] = useState(0);
@@ -183,7 +177,7 @@ export default function App() {
   const [anim, setAnim] = useState("");
 
   function start() {
-    setList(pickCount(allQuestions, 20));
+    setList(pickCount(allQuestions, count)); // 🔥 적용
     setI(0);
     setPage("quiz");
   }
@@ -215,12 +209,7 @@ export default function App() {
     }
 
     setShowAnswer(true);
-
-    if (correct) {
-      vibrate("success");
-    } else {
-      vibrate("fail");
-    }
+    vibrate(correct ? "success" : "fail");
   }
 
   function choose(idx) {
@@ -246,25 +235,49 @@ export default function App() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
         <div className="bg-white p-6 rounded-3xl shadow-xl w-80">
+
           <h1 className="text-xl font-bold mb-4 text-center">Quiz</h1>
 
-          <button
-            onClick={() => setMode("normal")}
-            className={`w-full mb-2 p-3 rounded-xl ${
-              mode === "normal" ? "bg-blue-500 text-white" : "bg-gray-200"
-            }`}
-          >
-            빠른 풀이
-          </button>
+          {/* 모드 선택 */}
+          <div className="mb-4">
+            <button
+              onClick={() => setMode("normal")}
+              className={`w-full mb-2 p-3 rounded-xl ${
+                mode === "normal" ? "bg-blue-500 text-white" : "bg-gray-200"
+              }`}
+            >
+              빠른 풀이
+            </button>
 
-          <button
-            onClick={() => setMode("blank")}
-            className={`w-full mb-4 p-3 rounded-xl ${
-              mode === "blank" ? "bg-blue-500 text-white" : "bg-gray-200"
-            }`}
-          >
-            빈칸 + 풀이
-          </button>
+            <button
+              onClick={() => setMode("blank")}
+              className={`w-full p-3 rounded-xl ${
+                mode === "blank" ? "bg-blue-500 text-white" : "bg-gray-200"
+              }`}
+            >
+              빈칸 + 풀이
+            </button>
+          </div>
+
+          {/* 🔥 문제 개수 선택 */}
+          <div className="mb-4">
+            <p className="mb-2 text-sm text-gray-500">문제 수</p>
+            <div className="grid grid-cols-4 gap-2">
+              {[10,30,50,70].map(n => (
+                <button
+                  key={n}
+                  onClick={() => setCount(n)}
+                  className={`py-2 rounded-xl text-sm ${
+                    count === n
+                      ? "bg-black text-white"
+                      : "bg-gray-200"
+                  }`}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+          </div>
 
           <button
             onClick={start}
@@ -282,9 +295,8 @@ export default function App() {
   // ===== 퀴즈 =====
   return (
     <div className="min-h-screen bg-gray-100 p-4 flex items-center justify-center">
-      <div className={`${cardBase} ${anim} w-full max-w-md`}>
+      <div className={`bg-white rounded-3xl shadow-lg p-5 w-full max-w-md ${anim}`}>
 
-        {/* 질문 */}
         <div className="mb-4 font-medium">
           {mode === "blank" ? (
             <RenderSentence
@@ -298,7 +310,6 @@ export default function App() {
           )}
         </div>
 
-        {/* 빈칸 버튼 */}
         {mode === "blank" && (
           <button
             onClick={submitBlank}
@@ -308,13 +319,12 @@ export default function App() {
           </button>
         )}
 
-        {/* 선택지 */}
         <div className="space-y-2">
           {q.choices.map((c, idx) => (
             <button
               key={idx}
               onClick={() => choose(idx)}
-              className="w-full p-3 rounded-xl bg-gray-100 active:scale-95 transition"
+              className="w-full p-3 rounded-xl bg-gray-100 active:scale-95"
             >
               ({String.fromCharCode(65 + idx)}) {c}
             </button>
@@ -322,21 +332,16 @@ export default function App() {
         </div>
       </div>
 
-      {/* 🔥 shake 애니메이션 */}
-      <style>
-        {`
+      <style>{`
         .shake {
           animation: shake 0.4s;
         }
         @keyframes shake {
-          0% { transform: translateX(0); }
           25% { transform: translateX(-5px); }
           50% { transform: translateX(5px); }
           75% { transform: translateX(-5px); }
-          100% { transform: translateX(0); }
         }
-      `}
-      </style>
+      `}</style>
     </div>
   );
 }
