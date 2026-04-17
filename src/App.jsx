@@ -111,7 +111,7 @@ function playSound(type) {
   effectAudio.play().catch(() => {});
 }
 
-/* ===== 빈칸 생성 (수정됨) ===== */
+/* ===== 빈칸 생성 ===== */
 function makeBlanksFixed(sentence, blankCount) {
   const words = sentence.split(" ");
 
@@ -121,8 +121,8 @@ function makeBlanksFixed(sentence, blankCount) {
 
     if (
       clean.length > 3 &&
-      !/^[A-Z]/.test(clean) &&   // ❌ 대문자 시작 제외
-      !/^[0-9]/.test(clean)     // ❌ 숫자 시작 제외
+      !/^[A-Z]/.test(clean) &&
+      !/^[0-9]/.test(clean)
     ) {
       indexes.push(i);
     }
@@ -307,7 +307,7 @@ export default function App() {
       setAnim("");
 
       if (i + 1 >= list.length) {
-        setPage("result"); // 🔥 결산으로 이동
+        setPage("result");
       } else {
         setI(i + 1);
       }
@@ -322,12 +322,8 @@ export default function App() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
         <div className="bg-white p-6 rounded-3xl shadow-xl w-80 text-center space-y-4">
-
           <h2 className="text-xl font-bold">축하합니다!</h2>
-
-          <div>
-            정답률 {percent}% ({correctCount}개/{total}개)
-          </div>
+          <div>정답률 {percent}% ({correctCount}개/{total}개)</div>
 
           <button onClick={start} className="w-full p-3 bg-black text-white rounded-xl">
             같은 설정으로 다시 플레이
@@ -349,8 +345,8 @@ export default function App() {
   if (page === "review") {
     return (
       <div className="p-6 space-y-6">
-
         <h2 className="text-xl font-bold">이 단어들을 잘못 들었어요</h2>
+
         {wrongBlanksGlobal.map((w, i) => (
           <div key={i}>
             {w.answer} [내가 쓴 단어 : {w.user}]
@@ -358,9 +354,11 @@ export default function App() {
         ))}
 
         <h2 className="text-xl font-bold mt-6">틀린 문제를 다시 복습해봐요</h2>
+
         {wrongQuestionsGlobal.map((q, i) => (
           <div key={i} className="border p-3 rounded-xl">
             <div>Q. {q.question}</div>
+
             {q.choices.map((c, idx) => {
               let style = "";
               if (idx === q.answer) style = "text-green-600";
@@ -416,84 +414,105 @@ export default function App() {
 
   if (!q) return null;
 
-/* ===== 퀴즈 UI 그대로 유지 ===== */
-return (
-  <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-    <div className={`bg-white rounded-3xl shadow-xl p-5 w-full max-w-md ${anim}`}>
+  /* ================= 퀴즈 ================= */
+  return (
+    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
+      <div className={`bg-white rounded-3xl shadow-xl p-5 w-full max-w-md ${anim}`}>
 
-      <div className="mb-4 p-3 border rounded-xl bg-white">
-        {mode === "blank"
-          ? <RenderSentence parts={qParts} inputs={inputs} setInputs={setInputs} showAnswer={showAnswer} offset={0} />
-          : <div className="text-lg">{q.question}</div>
-        }
-      </div>
+        {/* 🔥 추가된 상단 버튼 */}
+        <div className="flex justify-between mb-3">
+          <button onClick={() => setPage("home")} className="text-sm bg-gray-200 px-3 py-1 rounded-lg">
+            ← 홈
+          </button>
 
-      <div className="space-y-2 mb-3">
-        {mode === "blank"
-        ? cParts.map((parts, idx) => {
-            const offset =
-              qParts.filter(p=>p.type==="blank").length +
-              cParts.slice(0,idx).flat().filter(p=>p.type==="blank").length;
+          <button
+            onClick={() => {
+              if (audio) {
+                audio.currentTime = 0;
+                audio.play();
+              }
+            }}
+            className="text-sm bg-gray-200 px-3 py-1 rounded-lg"
+          >
+            🔊 다시 듣기
+          </button>
+        </div>
 
-            let style = "bg-gray-50 border";
+        {/* 질문 */}
+        <div className="mb-4 p-3 border rounded-xl bg-white">
+          {mode === "blank"
+            ? <RenderSentence parts={qParts} inputs={inputs} setInputs={setInputs} showAnswer={showAnswer} offset={0} />
+            : <div className="text-lg">{q.question}</div>
+          }
+        </div>
 
-            if (selected !== null) {
-              if (idx === q.answer) style = "bg-green-200 border-green-400";
-              else if (idx === selected) style = "bg-red-200 border-red-400";
-            }
+        {/* 선택지 */}
+        <div className="space-y-2 mb-3">
+          {mode === "blank"
+          ? cParts.map((parts, idx) => {
+              const offset =
+                qParts.filter(p=>p.type==="blank").length +
+                cParts.slice(0,idx).flat().filter(p=>p.type==="blank").length;
 
-            return (
-              <div
-                key={idx}
-                onClick={() => showAnswer && selected === null && choose(idx)}
-                className={`p-3 rounded-xl cursor-pointer transition ${style}`}
-              >
-                <div className="font-semibold mb-1">
-                  ({String.fromCharCode(65 + idx)})
-                </div>
+              let style = "bg-gray-50 border";
 
-                <RenderSentence
-                  parts={parts}
-                  inputs={inputs}
-                  setInputs={setInputs}
-                  showAnswer={showAnswer}
-                  offset={offset}
-                />
-              </div>
-            );
-          })
-          : q.choices.map((c, idx) => {
-              let style = "bg-gray-100";
               if (selected !== null) {
-                if (idx === q.answer) style = "bg-green-300";
-                else if (idx === selected) style = "bg-red-300";
+                if (idx === q.answer) style = "bg-green-200 border-green-400";
+                else if (idx === selected) style = "bg-red-200 border-red-400";
               }
 
               return (
-                <button key={idx} onClick={() => selected===null && choose(idx)}
-                  className={`w-full p-3 rounded-xl ${style}`}>
-                  ({String.fromCharCode(65 + idx)}) {c}
-                </button>
+                <div
+                  key={idx}
+                  onClick={() => showAnswer && selected === null && choose(idx)}
+                  className={`p-3 rounded-xl cursor-pointer transition ${style}`}
+                >
+                  <div className="font-semibold mb-1">
+                    ({String.fromCharCode(65 + idx)})
+                  </div>
+
+                  <RenderSentence
+                    parts={parts}
+                    inputs={inputs}
+                    setInputs={setInputs}
+                    showAnswer={showAnswer}
+                    offset={offset}
+                  />
+                </div>
               );
             })
-        }
+            : q.choices.map((c, idx) => {
+                let style = "bg-gray-100";
+                if (selected !== null) {
+                  if (idx === q.answer) style = "bg-green-300";
+                  else if (idx === selected) style = "bg-red-300";
+                }
+
+                return (
+                  <button key={idx} onClick={() => selected===null && choose(idx)}
+                    className={`w-full p-3 rounded-xl ${style}`}>
+                    ({String.fromCharCode(65 + idx)}) {c}
+                  </button>
+                );
+              })
+          }
+        </div>
+
+        {mode === "blank" && !showAnswer && (
+          <button onClick={submitBlank} className="w-full py-2 bg-gray-200 rounded-xl">
+            확인
+          </button>
+        )}
       </div>
 
-      {mode === "blank" && !showAnswer && (
-        <button onClick={submitBlank} className="w-full py-2 bg-gray-200 rounded-xl">
-          확인
-        </button>
-      )}
+      <style>{`
+        .shake { animation: shake 0.4s; }
+        @keyframes shake {
+          25% { transform: translateX(-6px); }
+          50% { transform: translateX(6px); }
+          75% { transform: translateX(-6px); }
+        }
+      `}</style>
     </div>
-
-    <style>{`
-      .shake { animation: shake 0.4s; }
-      @keyframes shake {
-        25% { transform: translateX(-6px); }
-        50% { transform: translateX(6px); }
-        75% { transform: translateX(-6px); }
-      }
-    `}</style>
-  </div>
-);
+  );
 }
