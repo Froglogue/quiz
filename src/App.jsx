@@ -82,8 +82,6 @@ const allQuestions = [
 
 
 
-import { useState, useEffect } from "react";
-
 // ===== 유틸 =====
 function shuffle(arr) {
   return [...arr].sort(() => Math.random() - 0.5);
