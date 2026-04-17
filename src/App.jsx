@@ -91,98 +91,74 @@ function pickCount(arr, count) {
   return shuffle(arr).slice(0, count);
 }
 
-// 🔥 개선된 빈칸 생성
-function makeBlanks(sentence, blankCount = null) {
-  const words = sentence.split(" ");
+// 🔥 진동 (모바일)
+function vibrate(type = "success") {
+  if (!navigator.vibrate) return;
+  if (type === "success") navigator.vibrate(50);
+  else navigator.vibrate([100, 50, 100]);
+}
 
+// 🔥 애니메이션 클래스
+const cardBase =
+  "bg-white rounded-3xl shadow-lg p-5 transition-all duration-300";
+
+// ===== 빈칸 생성 =====
+function makeBlanks(sentence) {
   const stopWords = new Set([
     "the","a","an","to","of","in","on","at","for","and",
     "is","are","was","were","be","been","being",
     "do","does","did",
-    "i","you","he","she","it","we","they",
-    "my","your","his","her","its","our","their"
+    "i","you","he","she","it","we","they"
   ]);
 
-  const parsed = words.map(w => {
+  const words = sentence.split(" ");
+
+  return words.map(w => {
     const match = w.match(/^(.+?)([.,!?])?$/);
-    return {
-      word: match[1],
-      punct: match[2] || ""
-    };
-  });
+    const word = match[1];
+    const punct = match[2] || "";
 
-  const candidates = parsed
-    .map((p, i) => {
-      const lower = p.word.toLowerCase();
-      if (p.word.length <= 2) return null;
-      if (stopWords.has(lower)) return null;
-      return i;
-    })
-    .filter(i => i !== null);
-
-  const count =
-    blankCount ??
-    Math.min(candidates.length, Math.floor(Math.random() * 2) + 2);
-
-  const indices = shuffle(candidates).slice(0, count);
-
-  return parsed.map((p, i) => {
-    if (indices.includes(i)) {
-      return {
-        type: "blank",
-        answer: p.word,
-        punct: p.punct
-      };
-    } else {
-      return {
-        type: "text",
-        value: p.word + p.punct
-      };
+    if (word.length <= 2 || stopWords.has(word.toLowerCase())) {
+      return { type: "text", value: word + punct };
     }
+
+    if (Math.random() < 0.3) {
+      return { type: "blank", answer: word, punct };
+    }
+
+    return { type: "text", value: word + punct };
   });
 }
 
-// ===== 문장 렌더 =====
-function RenderSentence({
-  parts,
-  inputs,
-  setInputs,
-  showAnswer,
-  onEnter,
-  startIndex = 0,
-}) {
-  let blankIndex = startIndex;
+// ===== 렌더 =====
+function RenderSentence({ parts, inputs, setInputs, showAnswer }) {
+  let idx = 0;
 
   return (
-    <div className="flex flex-wrap gap-2 text-xl">
+    <div className="flex flex-wrap gap-1 text-lg leading-relaxed">
       {parts.map((p, i) => {
         if (p.type === "text") {
           return <span key={i}>{p.value}&nbsp;</span>;
-        } else {
-          const idx = blankIndex++;
-          const wrong = showAnswer && inputs[idx] !== p.answer;
-
-          return (
-            <span key={i} className="flex items-center">
-              <input
-                value={showAnswer ? p.answer : inputs[idx] || ""}
-                onChange={(e) => {
-                  if (showAnswer) return;
-                  const copy = [...inputs];
-                  copy[idx] = e.target.value;
-                  setInputs(copy);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") onEnter();
-                }}
-                className={`w-24 text-center border-b-2 outline-none
-                  ${wrong ? "border-red-500 text-red-500" : "border-gray-400"}
-                  focus:border-blue-500`}
-              />
-              <span>{p.punct}&nbsp;</span>
-            </span>
-          );
         }
+
+        const current = idx++;
+        const wrong = showAnswer && inputs[current] !== p.answer;
+
+        return (
+          <span key={i} className="flex items-center">
+            <input
+              value={showAnswer ? p.answer : inputs[current] || ""}
+              onChange={(e) => {
+                const copy = [...inputs];
+                copy[current] = e.target.value;
+                setInputs(copy);
+              }}
+              className={`w-16 md:w-20 text-center border-b-2 outline-none
+              ${wrong ? "border-red-500 text-red-500" : "border-gray-400"}`}
+            />
+            <span>{p.punct}&nbsp;</span>
+          </span>
+        );
       })}
     </div>
   );
@@ -192,201 +168,175 @@ function RenderSentence({
 export default function App() {
   const [page, setPage] = useState("home");
 
-  const [mode, setMode] = useState("blank");
-  const [count, setCount] = useState(10);
+  // 🔥 2모드
+  const [mode, setMode] = useState("normal"); // normal / blank
 
   const [list, setList] = useState([]);
   const [i, setI] = useState(0);
   const [q, setQ] = useState(null);
 
-  const [questionParts, setQuestionParts] = useState([]);
-  const [choiceParts, setChoiceParts] = useState([]);
-
+  const [parts, setParts] = useState([]);
   const [inputs, setInputs] = useState([]);
 
-  const [step, setStep] = useState("blank");
   const [showAnswer, setShowAnswer] = useState(false);
   const [selected, setSelected] = useState(null);
+  const [anim, setAnim] = useState("");
 
-  const [wrongBlanks, setWrongBlanks] = useState([]);
-  const [wrongChoices, setWrongChoices] = useState([]);
-
-  const [showResult, setShowResult] = useState(false);
-
-  const [audio, setAudio] = useState(null);
-
-  function startQuiz() {
-    const picked = pickCount(allQuestions, count);
-    setList(picked);
+  function start() {
+    setList(pickCount(allQuestions, 20));
     setI(0);
     setPage("quiz");
   }
 
   useEffect(() => {
-    if (list.length && i < list.length) {
-      const cur = list[i];
-      setQ(cur);
+    if (!list.length) return;
+    const cur = list[i];
+    setQ(cur);
 
-      if (audio) audio.pause();
-
-      const newAudio = new Audio(`/audio/${cur.id}.mp3`);
-      newAudio.play();
-      setAudio(newAudio);
-
-      if (mode === "blank") {
-        const qParts = makeBlanks(cur.question);
-        const cParts = cur.choices.map(c => makeBlanks(c, 1));
-
-        setQuestionParts(qParts);
-        setChoiceParts(cParts);
-
-        const totalBlanks =
-          qParts.filter(x => x.type === "blank").length +
-          cParts.flat().filter(x => x.type === "blank").length;
-
-        setInputs(Array(totalBlanks).fill(""));
-        setStep("blank");
-      }
-
-      setShowAnswer(false);
-      setSelected(null);
+    if (mode === "blank") {
+      const p = makeBlanks(cur.question);
+      setParts(p);
+      setInputs(Array(p.filter(x => x.type === "blank").length).fill(""));
     }
+
+    setShowAnswer(false);
+    setSelected(null);
   }, [list, i]);
 
-  function submitBlanks() {
+  function submitBlank() {
     let correct = true;
     let idx = 0;
 
-    const allParts = [
-      ...questionParts,
-      ...choiceParts.flat(),
-    ];
-
-    for (let p of allParts) {
+    for (let p of parts) {
       if (p.type === "blank") {
         if (inputs[idx] !== p.answer) correct = false;
         idx++;
       }
     }
 
-    if (!correct) {
-      setShowAnswer(true);
-      setWrongBlanks(prev => [...prev, q]);
-    }
+    setShowAnswer(true);
 
-    setStep("choice");
+    if (correct) {
+      vibrate("success");
+    } else {
+      vibrate("fail");
+    }
   }
 
-  function selectChoice(idx) {
+  function choose(idx) {
     setSelected(idx);
-    setShowResult(true);
 
-    if (idx !== q.answer) {
-      setWrongChoices(prev => [...prev, q]);
+    if (idx === q.answer) {
+      vibrate("success");
+      setAnim("scale-105 bg-green-100");
+    } else {
+      vibrate("fail");
+      setAnim("shake bg-red-100");
     }
 
     setTimeout(() => {
-      setShowResult(false);
-      setSelected(null);
-
-      if (i + 1 >= list.length) {
-        setPage("result");
-      } else {
-        setI(prev => prev + 1);
-      }
-    }, 2000);
+      setAnim("");
+      if (i + 1 >= list.length) setPage("home");
+      else setI(i + 1);
+    }, 800);
   }
 
+  // ===== 홈 =====
   if (page === "home") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <button onClick={startQuiz} className="px-6 py-3 bg-blue-500 text-white rounded">
-          시작
-        </button>
-      </div>
-    );
-  }
+        <div className="bg-white p-6 rounded-3xl shadow-xl w-80">
+          <h1 className="text-xl font-bold mb-4 text-center">Quiz</h1>
 
-  if (page === "result") {
-    return (
-      <div className="p-6">
-        <h1>복습</h1>
-        <p>빈칸 틀림: {wrongBlanks.length}</p>
-        <p>객관식 틀림: {wrongChoices.length}</p>
-        <button onClick={() => setPage("home")}>홈</button>
-      </div>
-    );
-  }
+          <button
+            onClick={() => setMode("normal")}
+            className={`w-full mb-2 p-3 rounded-xl ${
+              mode === "normal" ? "bg-blue-500 text-white" : "bg-gray-200"
+            }`}
+          >
+            빠른 풀이
+          </button>
 
-  if (!q) return <div>로딩중...</div>;
+          <button
+            onClick={() => setMode("blank")}
+            className={`w-full mb-4 p-3 rounded-xl ${
+              mode === "blank" ? "bg-blue-500 text-white" : "bg-gray-200"
+            }`}
+          >
+            빈칸 + 풀이
+          </button>
 
-  return (
-    <div className="p-4">
-
-      {/* 질문 */}
-      <RenderSentence
-        parts={questionParts}
-        inputs={inputs}
-        setInputs={setInputs}
-        showAnswer={showAnswer}
-        onEnter={submitBlanks}
-        startIndex={0}
-      />
-
-      {/* 선택지 */}
-      <div className="mt-4 space-y-2">
-        {choiceParts.map((parts, idx) => {
-          const offset =
-            questionParts.filter(p => p.type === "blank").length +
-            choiceParts
-              .slice(0, idx)
-              .flat()
-              .filter(p => p.type === "blank").length;
-
-          return (
-            <div key={idx}>
-              ({String.fromCharCode(65 + idx)}){" "}
-              <RenderSentence
-                parts={parts}
-                inputs={inputs}
-                setInputs={setInputs}
-                showAnswer={showAnswer}
-                onEnter={submitBlanks}
-                startIndex={offset}
-              />
-            </div>
-          );
-        })}
-      </div>
-
-      {step === "blank" && (
-        <button onClick={submitBlanks} className="mt-4 bg-blue-500 text-white px-4 py-2">
-          빈칸 확인
-        </button>
-      )}
-
-      {step === "choice" && (
-        <div className="mt-4 space-y-2">
-          {q.choices.map((c, idx) => {
-            let style = "bg-gray-100";
-
-            if (showResult) {
-              if (idx === q.answer) style = "bg-green-300";
-              else if (idx === selected) style = "bg-red-300";
-            }
-
-            return (
-              <button
-                key={idx}
-                onClick={() => !showResult && selectChoice(idx)}
-                className={`w-full p-3 ${style}`}
-              >
-                ({String.fromCharCode(65 + idx)}) {c}
-              </button>
-            );
-          })}
+          <button
+            onClick={start}
+            className="w-full p-3 bg-black text-white rounded-xl active:scale-95"
+          >
+            시작
+          </button>
         </div>
-      )}
+      </div>
+    );
+  }
+
+  if (!q) return null;
+
+  // ===== 퀴즈 =====
+  return (
+    <div className="min-h-screen bg-gray-100 p-4 flex items-center justify-center">
+      <div className={`${cardBase} ${anim} w-full max-w-md`}>
+
+        {/* 질문 */}
+        <div className="mb-4 font-medium">
+          {mode === "blank" ? (
+            <RenderSentence
+              parts={parts}
+              inputs={inputs}
+              setInputs={setInputs}
+              showAnswer={showAnswer}
+            />
+          ) : (
+            <div className="text-lg">{q.question}</div>
+          )}
+        </div>
+
+        {/* 빈칸 버튼 */}
+        {mode === "blank" && (
+          <button
+            onClick={submitBlank}
+            className="w-full mb-3 py-2 bg-gray-200 rounded-xl"
+          >
+            확인
+          </button>
+        )}
+
+        {/* 선택지 */}
+        <div className="space-y-2">
+          {q.choices.map((c, idx) => (
+            <button
+              key={idx}
+              onClick={() => choose(idx)}
+              className="w-full p-3 rounded-xl bg-gray-100 active:scale-95 transition"
+            >
+              ({String.fromCharCode(65 + idx)}) {c}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 🔥 shake 애니메이션 */}
+      <style>
+        {`
+        .shake {
+          animation: shake 0.4s;
+        }
+        @keyframes shake {
+          0% { transform: translateX(0); }
+          25% { transform: translateX(-5px); }
+          50% { transform: translateX(5px); }
+          75% { transform: translateX(-5px); }
+          100% { transform: translateX(0); }
+        }
+      `}
+      </style>
     </div>
   );
 }
