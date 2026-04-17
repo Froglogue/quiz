@@ -81,7 +81,6 @@ const allQuestions = [
 ];
 
 
-
 // ===== 유틸 =====
 function shuffle(arr) {
   return [...arr].sort(() => Math.random() - 0.5);
@@ -108,7 +107,7 @@ function playSound(type) {
   effectAudio.play().catch(() => {});
 }
 
-// ===== 빈칸 생성 =====
+// ===== 빈칸 =====
 function makeBlanks(sentence) {
   const stopWords = new Set([
     "the","a","an","to","of","in","on","at","for","and",
@@ -134,34 +133,50 @@ function makeBlanks(sentence) {
   });
 }
 
-// ===== 문장 렌더 =====
-function RenderSentence({ parts, inputs, setInputs, showAnswer, offset = 0 }) {
+// ===== 렌더 =====
+function RenderSentence({
+  parts,
+  inputs,
+  setInputs,
+  showAnswer,
+  offset = 0,
+  results = []
+}) {
   let idx = offset;
 
   return (
-    <div className="flex flex-wrap gap-1 text-lg leading-7">
+    <div className="flex flex-wrap gap-2 text-lg leading-7">
       {parts.map((p, i) => {
         if (p.type === "text") {
           return <span key={i}>{p.value}&nbsp;</span>;
         }
 
         const current = idx++;
-        const wrong =
-          showAnswer &&
-          inputs[current]?.toLowerCase() !== p.answer.toLowerCase();
+        const user = inputs[current] || "";
+        const correct =
+          user.toLowerCase() === p.answer.toLowerCase();
+
+        const color =
+          showAnswer
+            ? correct
+              ? "border-green-500 text-green-600"
+              : "border-red-500 text-red-500"
+            : "border-gray-400";
 
         return (
           <span key={i} className="flex items-center">
             <input
-              value={showAnswer ? p.answer : inputs[current] || ""}
+              value={showAnswer ? p.answer : user}
               onChange={(e) => {
+                if (showAnswer) return;
                 const copy = [...inputs];
                 copy[current] = e.target.value;
                 setInputs(copy);
               }}
-              className={`w-16 text-center border-b-2 outline-none
-              ${wrong ? "border-red-500 text-red-500" : "border-gray-400"}
-              focus:border-blue-500`}
+              style={{
+                width: `${Math.max(60, (p.answer.length + 1) * 10)}px`
+              }}
+              className={`text-center border-b-2 outline-none ${color}`}
             />
             <span>{p.punct}&nbsp;</span>
           </span>
@@ -193,23 +208,25 @@ export default function App() {
   const [selected, setSelected] = useState(null);
   const [anim, setAnim] = useState("");
 
+  // ===== 시작 =====
   function start() {
     setList(pickCount(allQuestions, count));
     setI(0);
     setPage("quiz");
   }
 
+  // ===== 문제 로드 =====
   useEffect(() => {
     if (!list.length) return;
 
     const cur = list[i];
     setQ(cur);
 
-    // 🔥 문제 음성
     if (audio) {
       audio.pause();
       audio.currentTime = 0;
     }
+
     const newAudio = new Audio(`/audio/${cur.id}.mp3`);
     newAudio.play().catch(() => {});
     setAudio(newAudio);
@@ -270,11 +287,11 @@ export default function App() {
     if (idx === q.answer) {
       vibrate("success");
       playSound("correct");
-      setAnim("scale-105 bg-green-100");
+      setAnim("bg-green-100 scale-105");
     } else {
       vibrate("fail");
       playSound("wrong");
-      setAnim("shake bg-red-100");
+      setAnim("bg-red-100 shake");
     }
 
     setTimeout(() => {
@@ -328,7 +345,7 @@ export default function App() {
 
           <button
             onClick={start}
-            className="w-full p-3 bg-black text-white rounded-xl active:scale-95"
+            className="w-full p-3 bg-black text-white rounded-xl"
           >
             시작
           </button>
