@@ -83,6 +83,7 @@ const allQuestions = [
 
 
 // ===== 유틸 =====
+
 function shuffle(arr) {
   return [...arr].sort(() => Math.random() - 0.5);
 }
@@ -122,6 +123,33 @@ function makeBlanks(sentence) {
 
     return { type: "text", value: word + punct };
   });
+}
+
+// ===== 효과음 =====
+function playSound(type) {
+  const sound = new Audio(`/audio/${type}.mp3`);
+  sound.play();
+}
+
+// ===== 선택 =====
+function choose(idx) {
+  setSelected(idx);
+
+  if (idx === q.answer) {
+    vibrate("success");
+    playSound("correct"); // 🔥 효과음
+    setAnim("bg-green-200 scale-105");
+  } else {
+    vibrate("fail");
+    playSound("wrong"); // 🔥 효과음
+    setAnim("bg-red-200 shake");
+  }
+
+  setTimeout(() => {
+    setAnim("");
+    if (i + 1 >= list.length) setPage("home");
+    else setI(i + 1);
+  }, 900);
 }
 
 // ===== 렌더 =====
@@ -320,15 +348,24 @@ export default function App() {
         )}
 
         <div className="space-y-2">
-          {q.choices.map((c, idx) => (
-            <button
-              key={idx}
-              onClick={() => choose(idx)}
-              className="w-full p-3 rounded-xl bg-gray-100 active:scale-95"
-            >
-              ({String.fromCharCode(65 + idx)}) {c}
-            </button>
-          ))}
+          {q.choices.map((c, idx) => {
+            let style = "bg-gray-100";
+
+            if (selected !== null) {
+              if (idx === q.answer) style = "bg-green-300";   // 정답
+              else if (idx === selected) style = "bg-red-300"; // 내가 고른 오답
+            }
+
+            return (
+              <button
+                key={idx}
+                onClick={() => selected === null && choose(idx)}
+                className={`w-full p-3 rounded-xl transition active:scale-95 ${style}`}
+              >
+                ({String.fromCharCode(65 + idx)}) {c}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -345,3 +382,4 @@ export default function App() {
     </div>
   );
 }
+
