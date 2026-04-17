@@ -81,86 +81,69 @@ const allQuestions = [
 ];
 
 
-// ===== 유틸 =====
-function shuffle(arr) {
-  return [...arr].sort(() => Math.random() - 0.5);
-}
-function pickCount(arr, count) {
-  return shuffle(arr).slice(0, count);
+/* ================== 유틸 ================== */
+function shuffle(arr){ return [...arr].sort(()=>Math.random()-0.5); }
+function pickCount(arr,count){ return shuffle(arr).slice(0,count); }
+
+function vibrate(type="success"){
+  if(!navigator.vibrate) return;
+  if(type==="success") navigator.vibrate(40);
+  else navigator.vibrate([80,40,80]);
 }
 
-// ===== 진동 =====
-function vibrate(type = "success") {
-  if (!navigator.vibrate) return;
-  if (type === "success") navigator.vibrate(40);
-  else navigator.vibrate([80, 40, 80]);
+let effectAudio=null;
+function playSound(type){
+  if(effectAudio){ effectAudio.pause(); effectAudio.currentTime=0; }
+  effectAudio=new Audio(`/audio/${type}.mp3`);
+  effectAudio.play().catch(()=>{});
 }
 
-// ===== 효과음 =====
-let effectAudio = null;
-function playSound(type) {
-  if (effectAudio) {
-    effectAudio.pause();
-    effectAudio.currentTime = 0;
+/* ================== 빈칸 ================== */
+function makeBlanksFixed(sentence, count){
+  const words=sentence.split(" ");
+  let idxs=[];
+  for(let i=0;i<words.length;i++){
+    if(words[i].length>3) idxs.push(i);
   }
-  effectAudio = new Audio(`/audio/${type}.mp3`);
-  effectAudio.play().catch(() => {});
-}
+  idxs=shuffle(idxs).slice(0,count);
 
-// ===== 빈칸 생성 (고정 개수) =====
-function makeBlanksFixed(sentence, blankCount) {
-  const words = sentence.split(" ");
+  return words.map((w,i)=>{
+    const m=w.match(/^(.+?)([.,!?])?$/);
+    const word=m[1];
+    const punct=m[2]||"";
 
-  let indexes = [];
-  for (let i = 0; i < words.length; i++) {
-    if (words[i].length > 3) indexes.push(i);
-  }
-
-  indexes = shuffle(indexes).slice(0, blankCount);
-
-  return words.map((w, i) => {
-    const match = w.match(/^(.+?)([.,!?])?$/);
-    const word = match[1];
-    const punct = match[2] || "";
-
-    if (indexes.includes(i)) {
-      return { type: "blank", answer: word, punct };
-    }
-    return { type: "text", value: word + punct };
+    if(idxs.includes(i)) return {type:"blank",answer:word,punct};
+    return {type:"text",value:word+punct};
   });
 }
 
-// ===== 렌더 =====
-function RenderSentence({ parts, inputs, setInputs, showAnswer, offset }) {
-  let idx = offset;
+/* ================== 렌더 ================== */
+function RenderSentence({parts,inputs,setInputs,showAnswer,offset}){
+  let idx=offset;
 
   return (
     <div className="flex flex-wrap gap-2 text-lg">
-      {parts.map((p, i) => {
-        if (p.type === "text") {
+      {parts.map((p,i)=>{
+        if(p.type==="text"){
           return <span key={i}>{p.value}&nbsp;</span>;
         }
 
-        const current = idx++;
-        const user = inputs[current] || "";
-        const correct =
-          user.toLowerCase() === p.answer.toLowerCase();
+        const cur=idx++;
+        const user=inputs[cur]||"";
+        const correct=user.toLowerCase()===p.answer.toLowerCase();
 
         return (
           <span key={i} className="flex items-center">
             <input
-              value={showAnswer ? p.answer : user}
-              onChange={(e) => {
-                if (showAnswer) return;
-                const copy = [...inputs];
-                copy[current] = e.target.value;
+              value={showAnswer?p.answer:user}
+              onChange={(e)=>{
+                if(showAnswer) return;
+                const copy=[...inputs];
+                copy[cur]=e.target.value;
                 setInputs(copy);
               }}
-              style={{
-                width: `${Math.max(60, p.answer.length * 12)}px`
-              }}
-              className={`border-b-2 text-center outline-none
-              ${
+              style={{width:`${Math.max(60,p.answer.length*12)}px`}}
+              className={`border-b-2 text-center outline-none ${
                 showAnswer
                   ? correct
                     ? "border-green-500 text-green-600"
@@ -176,140 +159,234 @@ function RenderSentence({ parts, inputs, setInputs, showAnswer, offset }) {
   );
 }
 
-// ===== 앱 =====
-export default function App() {
-  const [page, setPage] = useState("home");
-  const [mode, setMode] = useState("normal");
-  const [count, setCount] = useState(10);
+/* ================== 앱 ================== */
+export default function App(){
 
-  const [list, setList] = useState([]);
-  const [i, setI] = useState(0);
-  const [q, setQ] = useState(null);
+  const [page,setPage]=useState("home");
+  const [mode,setMode]=useState("normal");
+  const [count,setCount]=useState(10);
 
-  const [qParts, setQParts] = useState([]);
-  const [cParts, setCParts] = useState([]);
-  const [inputs, setInputs] = useState([]);
+  const [list,setList]=useState([]);
+  const [i,setI]=useState(0);
+  const [q,setQ]=useState(null);
 
-  const [audio, setAudio] = useState(null);
+  const [qParts,setQParts]=useState([]);
+  const [cParts,setCParts]=useState([]);
+  const [inputs,setInputs]=useState([]);
 
-  const [showAnswer, setShowAnswer] = useState(false);
-  const [selected, setSelected] = useState(null);
-  const [anim, setAnim] = useState("");
+  const [audio,setAudio]=useState(null);
 
-  function start() {
-    setList(pickCount(allQuestions, count));
+  const [showAnswer,setShowAnswer]=useState(false);
+  const [selected,setSelected]=useState(null);
+  const [anim,setAnim]=useState("");
+
+  /* ===== 추가: 결과/기록 ===== */
+  const [records,setRecords]=useState([]); // {q, selected, correct}
+  const [wrongWords,setWrongWords]=useState([]); // 빈칸용
+
+  function start(){
+    setList(pickCount(allQuestions,count));
     setI(0);
+    setRecords([]);
+    setWrongWords([]);
     setPage("quiz");
   }
 
-  useEffect(() => {
-    if (!list.length) return;
+  useEffect(()=>{
+    if(!list.length) return;
 
-    const cur = list[i];
+    const cur=list[i];
     setQ(cur);
 
-    if (audio) {
-      audio.pause();
-      audio.currentTime = 0;
-    }
+    if(audio){ audio.pause(); audio.currentTime=0; }
 
-    const newAudio = new Audio(`/audio/${cur.id}.mp3`);
-    newAudio.play().catch(() => {});
+    const newAudio=new Audio(`/audio/${cur.id}.mp3`);
+    newAudio.play().catch(()=>{});
     setAudio(newAudio);
 
-    if (mode === "blank") {
-      const qp = makeBlanksFixed(cur.question, 2);
-      const cp = cur.choices.map(c => makeBlanksFixed(c, 1));
+    if(mode==="blank"){
+      const qp=makeBlanksFixed(cur.question,2);
+      const cp=cur.choices.map(c=>makeBlanksFixed(c,1));
 
       setQParts(qp);
       setCParts(cp);
 
       const total =
-        qp.filter(x => x.type === "blank").length +
-        cp.flat().filter(x => x.type === "blank").length;
+        qp.filter(x=>x.type==="blank").length +
+        cp.flat().filter(x=>x.type==="blank").length;
 
       setInputs(Array(total).fill(""));
     }
 
     setShowAnswer(false);
     setSelected(null);
-  }, [list, i]);
 
-  function submitBlank() {
+  },[list,i]);
+
+  /* ===== 빈칸 제출 ===== */
+  function submitBlank(){
     setShowAnswer(true);
 
-    let correct = true;
-    let idx = 0;
-    const all = [...qParts, ...cParts.flat()];
+    let correct=true;
+    let idx=0;
+    const all=[...qParts,...cParts.flat()];
 
-    for (let p of all) {
-      if (p.type === "blank") {
-        if (inputs[idx]?.toLowerCase() !== p.answer.toLowerCase()) {
-          correct = false;
+    let wrongTemp=[];
+
+    for(let p of all){
+      if(p.type==="blank"){
+        const user=inputs[idx]||"";
+        if(user.toLowerCase()!==p.answer.toLowerCase()){
+          correct=false;
+          wrongTemp.push(`${p.answer} [${user}]`);
         }
         idx++;
       }
     }
 
-    if (correct) {
+    setWrongWords(prev=>[...prev,...wrongTemp]);
+
+    if(correct){
       vibrate("success");
       playSound("correct");
       setAnim("bg-green-100 scale-105");
-    } else {
+    }else{
       vibrate("fail");
       playSound("wrong");
       setAnim("bg-red-100 shake");
     }
 
-    setTimeout(() => setAnim(""), 600);
+    setTimeout(()=>setAnim(""),600);
   }
 
-  function choose(idx) {
+  /* ===== 선택 ===== */
+  function choose(idx){
     setSelected(idx);
 
-    if (idx === q.answer) {
+    const correct = idx===q.answer;
+
+    setRecords(prev=>[
+      ...prev,
+      { q, selected: idx, correct }
+    ]);
+
+    if(correct){
       vibrate("success");
       playSound("correct");
       setAnim("bg-green-100 scale-105");
-    } else {
+    }else{
       vibrate("fail");
       playSound("wrong");
       setAnim("bg-red-100 shake");
     }
 
-    setTimeout(() => {
+    setTimeout(()=>{
       setAnim("");
-      if (i + 1 >= list.length) setPage("home");
-      else setI(i + 1);
-    }, 900);
+
+      if(i+1>=list.length){
+        setPage("result");
+      }else{
+        setI(i+1);
+      }
+
+    },900);
   }
 
-  // ===== 홈 =====
-  if (page === "home") {
+  /* ================== 결과 페이지 ================== */
+  if(page==="result"){
+    const correctCount=records.filter(r=>r.correct).length;
+    const total=records.length;
+    const percent=((correctCount/total)*100).toFixed(1);
+
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="bg-white p-6 rounded-3xl shadow-xl w-80 text-center space-y-4">
+
+          <div className="text-xl font-bold">축하합니다!</div>
+          <div>정답율 {percent}% ({correctCount}/{total})</div>
+
+          <button onClick={start}
+            className="w-full p-3 bg-black text-white rounded-xl">
+            같은 설정으로 다시 플레이
+          </button>
+
+          <button onClick={()=>setPage("home")}
+            className="w-full p-3 bg-gray-200 rounded-xl">
+            홈으로 돌아가기
+          </button>
+
+          <button onClick={()=>setPage("review")}
+            className="w-full p-3 bg-gray-200 rounded-xl">
+            복습하기
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  /* ================== 복습 ================== */
+  if(page==="review"){
+    const wrong = records.filter(r=>!r.correct);
+
+    return (
+      <div className="p-4 space-y-4">
+
+        {mode==="blank" && (
+          <div>
+            <div className="font-bold mb-2">이 단어들을 잘못 들었어요</div>
+            {wrongWords.map((w,i)=>(
+              <div key={i}>{w}</div>
+            ))}
+          </div>
+        )}
+
+        <div className="font-bold">틀린 문제를 다시 복습해봐요</div>
+
+        {wrong.map((r,idx)=>(
+          <div key={idx} className="p-4 border rounded-xl bg-white">
+            <div className="mb-2">Q. {r.q.question}</div>
+
+            {r.q.choices.map((c,i)=>{
+              let style="";
+              if(i===r.q.answer) style="text-green-600";
+              if(i===r.selected && i!==r.q.answer) style="text-red-500";
+
+              return (
+                <div key={i} className={style}>
+                  ({String.fromCharCode(65+i)}) {c}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+
+        <button
+          onClick={()=>setPage("home")}
+          className="w-full p-3 bg-black text-white rounded-xl">
+          홈으로
+        </button>
+      </div>
+    );
+  }
+
+  /* ================== 홈 ================== */
+  if(page==="home"){
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
         <div className="bg-white p-6 rounded-3xl shadow-xl w-80">
 
           <h1 className="text-xl font-bold mb-4 text-center">Quiz</h1>
 
-          <div className="mb-4">
-            <button onClick={() => setMode("normal")} className={`w-full mb-2 p-3 rounded-xl ${mode==="normal"?"bg-black text-white":"bg-gray-200"}`}>
-              빠른 풀이
-            </button>
-            <button onClick={() => setMode("blank")} className={`w-full p-3 rounded-xl ${mode==="blank"?"bg-black text-white":"bg-gray-200"}`}>
-              빈칸 + 풀이
-            </button>
-          </div>
+          <button onClick={()=>setMode("normal")} className="w-full mb-2 p-3 rounded-xl bg-gray-200">
+            빠른 풀이
+          </button>
 
-          <div className="grid grid-cols-4 gap-2 mb-4">
-            {[10,30,50,70].map(n => (
-              <button key={n} onClick={() => setCount(n)} className={`py-2 rounded-xl ${count===n?"bg-black text-white":"bg-gray-200"}`}>
-                {n}
-              </button>
-            ))}
-          </div>
+          <button onClick={()=>setMode("blank")} className="w-full p-3 rounded-xl bg-gray-200">
+            빈칸 + 풀이
+          </button>
 
-          <button onClick={start} className="w-full p-3 bg-black text-white rounded-xl">
+          <button onClick={start}
+            className="w-full mt-4 p-3 bg-black text-white rounded-xl">
             시작
           </button>
         </div>
@@ -317,88 +394,49 @@ export default function App() {
     );
   }
 
-  if (!q) return null;
+  if(!q) return null;
 
-  // ===== 퀴즈 =====
+  /* ================== 퀴즈 ================== */
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
       <div className={`bg-white rounded-3xl shadow-xl p-5 w-full max-w-md ${anim}`}>
 
-        {/* 질문 */}
-        <div className="mb-4 p-3 border rounded-xl bg-white">
-          {mode === "blank"
-            ? <RenderSentence parts={qParts} inputs={inputs} setInputs={setInputs} showAnswer={showAnswer} offset={0} />
-            : <div className="text-lg">{q.question}</div>
+        <div className="mb-4 p-3 border rounded-xl">
+          {mode==="blank"
+            ? <RenderSentence parts={qParts} inputs={inputs} setInputs={setInputs} showAnswer={showAnswer} offset={0}/>
+            : <div>{q.question}</div>
           }
         </div>
 
-        {/* 선택지 */}
-        <div className="space-y-2 mb-3">
-          {mode === "blank"
-          ? cParts.map((parts, idx) => {
-              const offset =
-                qParts.filter(p=>p.type==="blank").length +
-                cParts.slice(0,idx).flat().filter(p=>p.type==="blank").length;
+        <div className="space-y-2">
 
-              let style = "bg-gray-50 border";
+          {q.choices.map((c,idx)=>{
+            let style="bg-gray-100";
 
-              if (selected !== null) {
-                if (idx === q.answer) style = "bg-green-200 border-green-400";
-                else if (idx === selected) style = "bg-red-200 border-red-400";
-              }
+            if(selected!==null){
+              if(idx===q.answer) style="bg-green-300";
+              else if(idx===selected) style="bg-red-300";
+            }
 
-              return (
-                <div
-                  key={idx}
-                  onClick={() => showAnswer && selected === null && choose(idx)}
-                  className={`p-3 rounded-xl cursor-pointer transition ${style}`}
-                >
-                  <div className="font-semibold mb-1">
-                    ({String.fromCharCode(65 + idx)})
-                  </div>
+            return (
+              <button key={idx}
+                onClick={()=> (mode==="blank" ? showAnswer && selected===null && choose(idx) : selected===null && choose(idx))}
+                className={`w-full p-3 rounded-xl ${style}`}>
+                ({String.fromCharCode(65+idx)}) {c}
+              </button>
+            );
+          })}
 
-                  <RenderSentence
-                    parts={parts}
-                    inputs={inputs}
-                    setInputs={setInputs}
-                    showAnswer={showAnswer}
-                    offset={offset}
-                  />
-                </div>
-              );
-            })
-            : q.choices.map((c, idx) => {
-                let style = "bg-gray-100";
-                if (selected !== null) {
-                  if (idx === q.answer) style = "bg-green-300";
-                  else if (idx === selected) style = "bg-red-300";
-                }
-
-                return (
-                  <button key={idx} onClick={() => selected===null && choose(idx)}
-                    className={`w-full p-3 rounded-xl ${style}`}>
-                    ({String.fromCharCode(65 + idx)}) {c}
-                  </button>
-                );
-              })
-          }
         </div>
 
-        {mode === "blank" && !showAnswer && (
-          <button onClick={submitBlank} className="w-full py-2 bg-gray-200 rounded-xl">
+        {mode==="blank" && !showAnswer && (
+          <button onClick={submitBlank}
+            className="w-full mt-3 p-2 bg-gray-200 rounded-xl">
             확인
           </button>
         )}
-      </div>
 
-      <style>{`
-        .shake { animation: shake 0.4s; }
-        @keyframes shake {
-          25% { transform: translateX(-6px); }
-          50% { transform: translateX(6px); }
-          75% { transform: translateX(-6px); }
-        }
-      `}</style>
+      </div>
     </div>
   );
 }
