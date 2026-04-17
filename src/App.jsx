@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 
 /* ================= 추가: 오답 저장 ================= */
 let wrongQuestionsGlobal = [];
@@ -143,8 +143,16 @@ function makeBlanksFixed(sentence, blankCount) {
 }
 
 /* ===== 렌더 ===== */
-function RenderSentence({ parts, inputs, setInputs, showAnswer, offset }) {
+function RenderSentence({ parts, inputs, setInputs, showAnswer, offset, onSubmit }) {
   let idx = offset;
+  const inputRefs = useRef([]);
+
+  // 🔥 자동 포커스 (첫 번째 빈칸)
+  useEffect(() => {
+    if (!showAnswer && inputRefs.current[0]) {
+      inputRefs.current[0].focus();
+    }
+  }, [parts, showAnswer]);
 
   return (
     <div className="flex flex-wrap gap-2 text-lg">
@@ -160,6 +168,7 @@ function RenderSentence({ parts, inputs, setInputs, showAnswer, offset }) {
         return (
           <span key={i} className="flex items-center">
             <input
+              ref={(el) => (inputRefs.current[current] = el)} // 🔥 ref 연결
               value={showAnswer ? p.answer : user}
               onChange={(e) => {
                 if (showAnswer) return;
@@ -167,6 +176,22 @@ function RenderSentence({ parts, inputs, setInputs, showAnswer, offset }) {
                 copy[current] = e.target.value;
                 setInputs(copy);
               }}
+
+              // 🔥 엔터 이동 핵심
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+
+                  const isLast = current === inputs.length - 1;
+
+                  if (!isLast) {
+                    inputRefs.current[current + 1]?.focus(); // 다음으로 이동
+                  } else {
+                    onSubmit && onSubmit(); // 마지막이면 제출
+                  }
+                }
+              }}
+
               style={{ width: `${Math.max(60, p.answer.length * 12)}px` }}
               className={`border-b-2 text-center outline-none
               ${
@@ -441,7 +466,7 @@ export default function App() {
         {/* 질문 */}
         <div className="mb-4 p-3 border rounded-xl bg-white">
           {mode === "blank"
-            ? <RenderSentence parts={qParts} inputs={inputs} setInputs={setInputs} showAnswer={showAnswer} offset={0} />
+            ? <RenderSentence parts={qParts} inputs={inputs} setInputs={setInputs} showAnswer={showAnswer} offset={0} onSubmit={submitBlank}/>
             : <div className="text-lg">{q.question}</div>
           }
         </div>
@@ -477,6 +502,7 @@ export default function App() {
                     setInputs={setInputs}
                     showAnswer={showAnswer}
                     offset={offset}
+                    onSubmit={submitBlank}
                   />
                 </div>
               );
