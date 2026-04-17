@@ -111,13 +111,21 @@ function playSound(type) {
   effectAudio.play().catch(() => {});
 }
 
-/* ===== 빈칸 생성 ===== */
+/* ===== 빈칸 생성 (수정됨) ===== */
 function makeBlanksFixed(sentence, blankCount) {
   const words = sentence.split(" ");
-  let indexes = [];
 
+  let indexes = [];
   for (let i = 0; i < words.length; i++) {
-    if (words[i].length > 3) indexes.push(i);
+    const clean = words[i].replace(/[.,!?]/g, "");
+
+    if (
+      clean.length > 3 &&
+      !/^[A-Z]/.test(clean) &&   // ❌ 대문자 시작 제외
+      !/^[0-9]/.test(clean)     // ❌ 숫자 시작 제외
+    ) {
+      indexes.push(i);
+    }
   }
 
   indexes = shuffle(indexes).slice(0, blankCount);
@@ -198,9 +206,12 @@ export default function App() {
   const [selected, setSelected] = useState(null);
   const [anim, setAnim] = useState("");
 
+  const [correctCount, setCorrectCount] = useState(0);
+
   function start() {
     wrongQuestionsGlobal = [];
     wrongBlanksGlobal = [];
+    setCorrectCount(0);
 
     setList(pickCount(allQuestions, count));
     setI(0);
@@ -240,7 +251,6 @@ export default function App() {
     setSelected(null);
   }, [list, i]);
 
-  /* ===== 빈칸 제출 ===== */
   function submitBlank() {
     setShowAnswer(true);
 
@@ -252,8 +262,6 @@ export default function App() {
       if (p.type === "blank") {
         if (inputs[idx]?.toLowerCase() !== p.answer.toLowerCase()) {
           correct = false;
-
-          /* ===== 오답 단어 저장 ===== */
           wrongBlanksGlobal.push({
             answer: p.answer,
             user: inputs[idx] || ""
@@ -276,16 +284,13 @@ export default function App() {
     setTimeout(() => setAnim(""), 600);
   }
 
-  /* ===== 선택 ===== */
   function choose(idx) {
     setSelected(idx);
 
-    if (idx !== q.answer) {
-      /* ===== 문제 오답 저장 ===== */
-      wrongQuestionsGlobal.push({
-        ...q,
-        selected: idx
-      });
+    if (idx === q.answer) {
+      setCorrectCount(prev => prev + 1);
+    } else {
+      wrongQuestionsGlobal.push({ ...q, selected: idx });
     }
 
     if (idx === q.answer) {
@@ -302,11 +307,79 @@ export default function App() {
       setAnim("");
 
       if (i + 1 >= list.length) {
-        setPage("review"); // ★ 핵심
+        setPage("result"); // 🔥 결산으로 이동
       } else {
         setI(i + 1);
       }
     }, 900);
+  }
+
+  /* ================= 결산 ================= */
+  if (page === "result") {
+    const total = list.length;
+    const percent = ((correctCount / total) * 100).toFixed(1);
+
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="bg-white p-6 rounded-3xl shadow-xl w-80 text-center space-y-4">
+
+          <h2 className="text-xl font-bold">축하합니다!</h2>
+
+          <div>
+            정답률 {percent}% ({correctCount}개/{total}개)
+          </div>
+
+          <button onClick={start} className="w-full p-3 bg-black text-white rounded-xl">
+            같은 설정으로 다시 플레이
+          </button>
+
+          <button onClick={() => setPage("home")} className="w-full p-3 bg-gray-200 rounded-xl">
+            홈으로 돌아가기
+          </button>
+
+          <button onClick={() => setPage("review")} className="w-full p-3 bg-gray-200 rounded-xl">
+            복습하기
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  /* ================= 복습 ================= */
+  if (page === "review") {
+    return (
+      <div className="p-6 space-y-6">
+
+        <h2 className="text-xl font-bold">이 단어들을 잘못 들었어요</h2>
+        {wrongBlanksGlobal.map((w, i) => (
+          <div key={i}>
+            {w.answer} [내가 쓴 단어 : {w.user}]
+          </div>
+        ))}
+
+        <h2 className="text-xl font-bold mt-6">틀린 문제를 다시 복습해봐요</h2>
+        {wrongQuestionsGlobal.map((q, i) => (
+          <div key={i} className="border p-3 rounded-xl">
+            <div>Q. {q.question}</div>
+            {q.choices.map((c, idx) => {
+              let style = "";
+              if (idx === q.answer) style = "text-green-600";
+              if (idx === q.selected) style = "text-red-500";
+
+              return (
+                <div key={idx} className={style}>
+                  ({String.fromCharCode(65 + idx)}) {c}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+
+        <button onClick={() => setPage("home")} className="w-full p-3 bg-black text-white rounded-xl">
+          홈으로
+        </button>
+      </div>
+    );
   }
 
   /* ================= 홈 ================= */
@@ -314,7 +387,6 @@ export default function App() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
         <div className="bg-white p-6 rounded-3xl shadow-xl w-80">
-
           <h1 className="text-xl font-bold mb-4 text-center">Quiz</h1>
 
           <div className="mb-4">
@@ -342,129 +414,86 @@ export default function App() {
     );
   }
 
-  /* ================= 복습 ================= */
-  if (page === "review") {
-    return (
-      <div className="p-6 space-y-6">
-
-        <h2 className="text-xl font-bold">이 단어들을 잘못 들었어요</h2>
-
-        {wrongBlanksGlobal.map((w, i) => (
-          <div key={i}>
-            {w.answer} [내가 쓴 단어 : {w.user}]
-          </div>
-        ))}
-
-        <h2 className="text-xl font-bold mt-6">틀린 문제를 다시 복습해봐요</h2>
-
-        {wrongQuestionsGlobal.map((q, i) => (
-          <div key={i} className="border p-3 rounded-xl">
-            <div className="mb-2">Q. {q.question}</div>
-
-            {q.choices.map((c, idx) => {
-              let style = "";
-              if (idx === q.answer) style = "text-green-600";
-              if (idx === q.selected) style = "text-red-500";
-
-              return (
-                <div key={idx} className={style}>
-                  ({String.fromCharCode(65 + idx)}) {c}
-                </div>
-              );
-            })}
-          </div>
-        ))}
-
-        <button
-          onClick={() => setPage("home")}
-          className="mt-6 w-full p-3 bg-black text-white rounded-xl"
-        >
-          홈으로
-        </button>
-      </div>
-    );
-  }
-
   if (!q) return null;
 
-  /* ================= 퀴즈 (원형 그대로 유지) ================= */
-  return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-      <div className={`bg-white rounded-3xl shadow-xl p-5 w-full max-w-md ${anim}`}>
+/* ===== 퀴즈 UI 그대로 유지 ===== */
+return (
+  <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
+    <div className={`bg-white rounded-3xl shadow-xl p-5 w-full max-w-md ${anim}`}>
 
-        <div className="mb-4 p-3 border rounded-xl bg-white">
-          {mode === "blank"
-            ? <RenderSentence parts={qParts} inputs={inputs} setInputs={setInputs} showAnswer={showAnswer} offset={0} />
-            : <div className="text-lg">{q.question}</div>
-          }
-        </div>
+      <div className="mb-4 p-3 border rounded-xl bg-white">
+        {mode === "blank"
+          ? <RenderSentence parts={qParts} inputs={inputs} setInputs={setInputs} showAnswer={showAnswer} offset={0} />
+          : <div className="text-lg">{q.question}</div>
+        }
+      </div>
 
-        <div className="space-y-2 mb-3">
-          {mode === "blank"
-          ? cParts.map((parts, idx) => {
-              const offset =
-                qParts.filter(p=>p.type==="blank").length +
-                cParts.slice(0,idx).flat().filter(p=>p.type==="blank").length;
+      <div className="space-y-2 mb-3">
+        {mode === "blank"
+        ? cParts.map((parts, idx) => {
+            const offset =
+              qParts.filter(p=>p.type==="blank").length +
+              cParts.slice(0,idx).flat().filter(p=>p.type==="blank").length;
 
-              let style = "bg-gray-50 border";
+            let style = "bg-gray-50 border";
 
+            if (selected !== null) {
+              if (idx === q.answer) style = "bg-green-200 border-green-400";
+              else if (idx === selected) style = "bg-red-200 border-red-400";
+            }
+
+            return (
+              <div
+                key={idx}
+                onClick={() => showAnswer && selected === null && choose(idx)}
+                className={`p-3 rounded-xl cursor-pointer transition ${style}`}
+              >
+                <div className="font-semibold mb-1">
+                  ({String.fromCharCode(65 + idx)})
+                </div>
+
+                <RenderSentence
+                  parts={parts}
+                  inputs={inputs}
+                  setInputs={setInputs}
+                  showAnswer={showAnswer}
+                  offset={offset}
+                />
+              </div>
+            );
+          })
+          : q.choices.map((c, idx) => {
+              let style = "bg-gray-100";
               if (selected !== null) {
-                if (idx === q.answer) style = "bg-green-200 border-green-400";
-                else if (idx === selected) style = "bg-red-200 border-red-400";
+                if (idx === q.answer) style = "bg-green-300";
+                else if (idx === selected) style = "bg-red-300";
               }
 
               return (
-                <div
-                  key={idx}
-                  onClick={() => showAnswer && selected === null && choose(idx)}
-                  className={`p-3 rounded-xl cursor-pointer transition ${style}`}
-                >
-                  <div className="font-semibold mb-1">
-                    ({String.fromCharCode(65 + idx)})
-                  </div>
-
-                  <RenderSentence
-                    parts={parts}
-                    inputs={inputs}
-                    setInputs={setInputs}
-                    showAnswer={showAnswer}
-                    offset={offset}
-                  />
-                </div>
+                <button key={idx} onClick={() => selected===null && choose(idx)}
+                  className={`w-full p-3 rounded-xl ${style}`}>
+                  ({String.fromCharCode(65 + idx)}) {c}
+                </button>
               );
             })
-            : q.choices.map((c, idx) => {
-                let style = "bg-gray-100";
-                if (selected !== null) {
-                  if (idx === q.answer) style = "bg-green-300";
-                  else if (idx === selected) style = "bg-red-300";
-                }
-
-                return (
-                  <button key={idx} onClick={() => selected===null && choose(idx)}
-                    className={`w-full p-3 rounded-xl ${style}`}>
-                    ({String.fromCharCode(65 + idx)}) {c}
-                  </button>
-                );
-              })
-          }
-        </div>
-
-        {mode === "blank" && !showAnswer && (
-          <button onClick={submitBlank} className="w-full py-2 bg-gray-200 rounded-xl">
-            확인
-          </button>
-        )}
+        }
       </div>
 
-      <style>{`
-        .shake { animation: shake 0.4s; }
-        @keyframes shake {
-          25% { transform: translateX(-6px); }
-          50% { transform: translateX(6px); }
-          75% { transform: translateX(-6px); }
-        }
-      `}</style>
+      {mode === "blank" && !showAnswer && (
+        <button onClick={submitBlank} className="w-full py-2 bg-gray-200 rounded-xl">
+          확인
+        </button>
+      )}
     </div>
-  );
+
+    <style>{`
+      .shake { animation: shake 0.4s; }
+      @keyframes shake {
+        25% { transform: translateX(-6px); }
+        50% { transform: translateX(6px); }
+        75% { transform: translateX(-6px); }
+      }
+    `}</style>
+  </div>
+);
 }
