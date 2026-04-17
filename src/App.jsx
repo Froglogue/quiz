@@ -335,36 +335,38 @@ export default function App() {
         {/* 선택지 */}
         <div className="space-y-2 mb-3">
           {mode === "blank"
-            ? cParts.map((parts, idx) => {
-                const offset =
-                  qParts.filter(p=>p.type==="blank").length +
-                  cParts.slice(0,idx).flat().filter(p=>p.type==="blank").length;
+          ? cParts.map((parts, idx) => {
+              const offset =
+                qParts.filter(p=>p.type==="blank").length +
+                cParts.slice(0,idx).flat().filter(p=>p.type==="blank").length;
 
-                return (
-                  <div key={idx} className="p-3 rounded-xl border bg-gray-50">
-                    <div className="font-semibold mb-1">
-                      ({String.fromCharCode(65 + idx)})
-                    </div>
+              let style = "bg-gray-50 border";
 
-                    <RenderSentence
-                      parts={parts}
-                      inputs={inputs}
-                      setInputs={setInputs}
-                      showAnswer={showAnswer}
-                      offset={offset}
-                    />
+              if (selected !== null) {
+                if (idx === q.answer) style = "bg-green-200 border-green-400";
+                else if (idx === selected) style = "bg-red-200 border-red-400";
+              }
 
-                    {showAnswer && (
-                      <button
-                        onClick={() => choose(idx)}
-                        className="mt-2 w-full py-1 bg-gray-200 rounded"
-                      >
-                        선택
-                      </button>
-                    )}
+              return (
+                <div
+                  key={idx}
+                  onClick={() => showAnswer && selected === null && choose(idx)}
+                  className={`p-3 rounded-xl cursor-pointer transition ${style}`}
+                >
+                  <div className="font-semibold mb-1">
+                    ({String.fromCharCode(65 + idx)})
                   </div>
-                );
-              })
+
+                  <RenderSentence
+                    parts={parts}
+                    inputs={inputs}
+                    setInputs={setInputs}
+                    showAnswer={showAnswer}
+                    offset={offset}
+                  />
+                </div>
+              );
+            })
             : q.choices.map((c, idx) => {
                 let style = "bg-gray-100";
                 if (selected !== null) {
